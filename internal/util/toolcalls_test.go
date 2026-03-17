@@ -288,7 +288,7 @@ func TestRepairInvalidJSONBackslashes(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{`{"path": "C:\Users\name"}`, `{"path": "C:\\Users\name"}`},
+		{`{"path": "C:\Users\name"}`, `{"path": "C:\\Users\\name"}`},
 		{`{"cmd": "cd D:\git_codes"}`, `{"cmd": "cd D:\\git_codes"}`},
 		{`{"text": "line1\nline2"}`, `{"text": "line1\nline2"}`},
 		{`{"path": "D:\\back\\slash"}`, `{"path": "D:\\back\\slash"}`},
@@ -419,9 +419,29 @@ func TestParseToolCallsWithMixedWindowsPaths(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsWithPathEscapesAndTextNewlines(t *testing.T) {
+	text := `{"name":"write_file","input":"{\"content\":\"line1\\nline2\",\"path\":\"D:\\tmp\\a.txt\"}"}`
+	availableTools := []string{"write_file"}
+	parsed := ParseToolCalls(text, availableTools)
+	if len(parsed) != 1 {
+		t.Fatalf("expected 1 parsed tool call, got %d", len(parsed))
+	}
+
+	content, _ := parsed[0].Input["content"].(string)
+	path, _ := parsed[0].Input["path"].(string)
+	if !strings.Contains(content, "line1\nline2") {
+		t.Fatalf("expected content to preserve newline semantics, got %q", content)
+	}
+	if strings.ContainsAny(path, "\n\r\t") {
+		t.Fatalf("expected path to avoid control chars, got %q", path)
+	}
+	if !strings.Contains(path, `D:\tmp\a.txt`) {
+		t.Fatalf("expected path with literal backslashes, got %q", path)
+	}
+}
+
 func TestRepairLooseJSONWithNestedObjects(t *testing.T) {
-	// 测试嵌套对象的修复：DeepSeek 幻觉输出，每个元素内部包含嵌套 {}
-	// 注意：正则只支持单层嵌套，不支持更深层次的嵌套
+	// 覆盖深层嵌套对象的方括号修复，避免 regex 单层能力带来的漂移。
 	tests := []struct {
 		name     string
 		input    string
@@ -486,6 +506,11 @@ func TestRepairLooseJSONWithNestedObjects(t *testing.T) {
 			name:     "5个嵌套对象",
 			input:    `"tasks": {"id":1}, {"id":2}, {"id":3}, {"id":4}, {"id":5}`,
 			expected: `"tasks": [{"id":1}, {"id":2}, {"id":3}, {"id":4}, {"id":5}]`,
+		},
+		{
+			name:     "深层嵌套对象",
+			input:    `"todos": {"meta":{"a":{"b":1}},"content":"x"}, {"meta":{"a":{"b":2}},"content":"y"}`,
+			expected: `"todos": [{"meta":{"a":{"b":1}},"content":"x"}, {"meta":{"a":{"b":2}},"content":"y"}]`,
 		},
 	}
 
