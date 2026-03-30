@@ -596,6 +596,9 @@ data: {"type":"message_stop"}
 {
   "keys": ["k1", "k2"],
   "env_backed": false,
+  "env_source_present": true,
+  "env_writeback_enabled": true,
+  "config_path": "/data/config.json",
   "accounts": [
     {
       "identifier": "user@example.com",

@@ -8,9 +8,12 @@ import (
 func (h *Handler) getConfig(w http.ResponseWriter, _ *http.Request) {
 	snap := h.Store.Snapshot()
 	safe := map[string]any{
-		"keys":       snap.Keys,
-		"accounts":   []map[string]any{},
-		"env_backed": h.Store.IsEnvBacked(),
+		"keys":                  snap.Keys,
+		"accounts":              []map[string]any{},
+		"env_backed":            h.Store.IsEnvBacked(),
+		"env_source_present":    h.Store.HasEnvConfigSource(),
+		"env_writeback_enabled": h.Store.IsEnvWritebackEnabled(),
+		"config_path":           h.Store.ConfigPath(),
 		"claude_mapping": func() map[string]string {
 			if len(snap.ClaudeMapping) > 0 {
 				return snap.ClaudeMapping

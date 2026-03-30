@@ -64,6 +64,27 @@ export default function AccountManagerContainer({ config, onRefresh, onMessage, 
 
     return (
         <div className="space-y-6">
+            {Boolean(config?.env_source_present) && (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${
+                    config?.env_writeback_enabled
+                        ? (config?.env_backed ? 'border-amber-500/30 bg-amber-500/10 text-amber-600' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600')
+                        : 'border-amber-500/30 bg-amber-500/10 text-amber-600'
+                }`}>
+                    <p className="font-medium">
+                        {config?.env_writeback_enabled
+                            ? (config?.env_backed
+                                ? t('accountManager.envModeWritebackPendingTitle')
+                                : t('accountManager.envModeWritebackActiveTitle'))
+                            : t('accountManager.envModeRiskTitle')}
+                    </p>
+                    <p className="mt-1 text-xs opacity-90">
+                        {config?.env_writeback_enabled
+                            ? t('accountManager.envModeWritebackDesc', { path: config?.config_path || 'config.json' })
+                            : t('accountManager.envModeRiskDesc')}
+                    </p>
+                </div>
+            )}
+
             <QueueCards queueStatus={queueStatus} t={t} />
 
             <ApiKeysPanel

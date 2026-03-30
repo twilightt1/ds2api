@@ -40,6 +40,7 @@ func ParseDeepSeekContentLine(raw []byte, thinkingEnabled bool, currentType stri
 		}
 	}
 	parts, finished, nextType := ParseSSEChunkForContent(chunk, thinkingEnabled, currentType)
+	parts = filterLeakedContentFilterParts(parts)
 	return LineResult{
 		Parsed:   true,
 		Stop:     finished,

@@ -21,6 +21,9 @@ type ConfigStore interface {
 	Update(mutator func(*config.Config) error) error
 	ExportJSONAndBase64() (string, string, error)
 	IsEnvBacked() bool
+	IsEnvWritebackEnabled() bool
+	HasEnvConfigSource() bool
+	ConfigPath() string
 	SetVercelSync(hash string, ts int64) error
 	AdminPasswordHash() string
 	AdminJWTExpireHours() int

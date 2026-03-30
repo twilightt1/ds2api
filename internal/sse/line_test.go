@@ -35,3 +35,33 @@ func TestParseDeepSeekContentLineContent(t *testing.T) {
 		t.Fatalf("unexpected parts: %#v", res.Parts)
 	}
 }
+
+func TestParseDeepSeekContentLineStripsLeakedContentFilterSuffix(t *testing.T) {
+	res := ParseDeepSeekContentLine([]byte(`data: {"p":"response/content","v":"正常输出CONTENT_FILTER你好，这个问题我暂时无法回答"}`), false, "text")
+	if !res.Parsed || res.Stop {
+		t.Fatalf("expected parsed non-stop result: %#v", res)
+	}
+	if len(res.Parts) != 1 || res.Parts[0].Text != "正常输出" {
+		t.Fatalf("unexpected parts after filter: %#v", res.Parts)
+	}
+}
+
+func TestParseDeepSeekContentLineDropsPureLeakedContentFilterChunk(t *testing.T) {
+	res := ParseDeepSeekContentLine([]byte(`data: {"p":"response/content","v":"CONTENT_FILTER你好，这个问题我暂时无法回答"}`), false, "text")
+	if !res.Parsed || res.Stop {
+		t.Fatalf("expected parsed non-stop result: %#v", res)
+	}
+	if len(res.Parts) != 0 {
+		t.Fatalf("expected empty parts, got %#v", res.Parts)
+	}
+}
+
+func TestParseDeepSeekContentLineTrimsFromContentFilterKeyword(t *testing.T) {
+	res := ParseDeepSeekContentLine([]byte(`data: {"p":"response/content","v":"模型会在命中 CONTENT_FILTER 时返回拒绝原因。"}`), false, "text")
+	if !res.Parsed || res.Stop {
+		t.Fatalf("expected parsed non-stop result: %#v", res)
+	}
+	if len(res.Parts) != 1 || res.Parts[0].Text != "模型会在命中" {
+		t.Fatalf("unexpected parts after filter: %#v", res.Parts)
+	}
+}
