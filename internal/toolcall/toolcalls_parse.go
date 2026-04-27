@@ -94,7 +94,9 @@ func filterToolCallsDetailed(parsed []ParsedToolCall) ([]ParsedToolCall, []strin
 func looksLikeToolCallSyntax(text string) bool {
 	lower := strings.ToLower(text)
 	return strings.Contains(lower, "<|dsml|tool_calls") ||
+		strings.Contains(lower, "<|dsml tool_calls") ||
 		strings.Contains(lower, "<dsml|tool_calls") ||
+		strings.Contains(lower, "<dsml tool_calls") ||
 		strings.Contains(lower, "<｜tool_calls") ||
 		strings.Contains(lower, "<|tool_calls") ||
 		strings.Contains(lower, "<tool_calls")

@@ -4,7 +4,9 @@ const { parseToolCalls } = require('./parse');
 // XML wrapper tag pair used by the streaming sieve.
 const XML_TOOL_TAG_PAIRS = [
   { open: '<|dsml|tool_calls', close: '</|dsml|tool_calls>' },
+  { open: '<|dsml tool_calls', close: '</|dsml tool_calls>' },
   { open: '<dsml|tool_calls', close: '</dsml|tool_calls>' },
+  { open: '<dsml tool_calls', close: '</dsml tool_calls>' },
   { open: '<｜tool_calls', close: '</｜tool_calls>' },
   { open: '<|tool_calls', close: '</|tool_calls>' },
   { open: '<tool_calls', close: '</tool_calls>' },
@@ -12,7 +14,7 @@ const XML_TOOL_TAG_PAIRS = [
 
 const XML_TOOL_OPENING_TAGS = [
   ...XML_TOOL_TAG_PAIRS.map(p => p.open),
-  '<|dsml|invoke', '<dsml|invoke', '<｜invoke', '<|invoke', '<invoke',
+  '<|dsml|invoke', '<|dsml invoke', '<dsml|invoke', '<dsml invoke', '<｜invoke', '<|invoke', '<invoke',
 ];
 
 function consumeXMLToolCapture(captured, toolNames, trimWrappingJSONFence) {
@@ -188,11 +190,10 @@ function hasXMLToolTagBoundary(text, idx) {
 }
 
 function hasOpenXMLToolTag(captured) {
-  const lower = captured.toLowerCase();
   for (const pair of XML_TOOL_TAG_PAIRS) {
-    const openIdx = lower.indexOf(pair.open);
+    const openIdx = findXMLOpenOutsideCDATA(captured, pair.open, 0);
     if (openIdx >= 0) {
-      if (findXMLCloseOutsideCDATA(captured, pair.close, openIdx + pair.open.length) < 0) {
+      if (findMatchingXMLToolWrapperClose(captured, pair.open, pair.close, openIdx) < 0) {
         return true;
       }
     }
@@ -203,7 +204,9 @@ function hasOpenXMLToolTag(captured) {
 function containsAnyToolCallWrapper(lower) {
   return lower.includes('<tool_calls') ||
     lower.includes('<|dsml|tool_calls') ||
+    lower.includes('<|dsml tool_calls') ||
     lower.includes('<dsml|tool_calls') ||
+    lower.includes('<dsml tool_calls') ||
     lower.includes('<｜tool_calls') ||
     lower.includes('<|tool_calls');
 }
@@ -211,7 +214,7 @@ function containsAnyToolCallWrapper(lower) {
 function firstInvokeIndex(lower) {
   const xmlIdx = lower.indexOf('<invoke');
   // Check all DSML-like invoke prefixes.
-  const dsmlPrefixes = ['<|dsml|invoke', '<dsml|invoke', '<｜invoke', '<|invoke'];
+  const dsmlPrefixes = ['<|dsml|invoke', '<|dsml invoke', '<dsml|invoke', '<dsml invoke', '<｜invoke', '<|invoke'];
   let dsmlIdx = -1;
   for (const prefix of dsmlPrefixes) {
     const idx = lower.indexOf(prefix);

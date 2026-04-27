@@ -99,11 +99,10 @@ func consumeXMLToolCapture(captured string, toolNames []string) (prefix string, 
 // hasOpenXMLToolTag returns true if captured text contains an XML tool opening tag
 // whose SPECIFIC closing tag has not appeared yet.
 func hasOpenXMLToolTag(captured string) bool {
-	lower := strings.ToLower(captured)
 	for _, pair := range xmlToolCallTagPairs {
-		openIdx := strings.Index(lower, pair.open)
+		openIdx := findXMLOpenOutsideCDATA(captured, pair.open, 0)
 		if openIdx >= 0 {
-			if findXMLCloseOutsideCDATA(captured, pair.close, openIdx+len(pair.open)) < 0 {
+			if findMatchingXMLToolWrapperClose(captured, pair.open, pair.close, openIdx) < 0 {
 				return true
 			}
 		}
@@ -117,17 +116,25 @@ func shouldKeepBareInvokeCapture(captured string) bool {
 	if invokeIdx < 0 || containsAnyToolCallWrapper(lower) {
 		return false
 	}
-	wrapperClose := "</tool_calls>"
 	invokeOpenLen := len("<invoke")
-	invokeClose := "</invoke>"
 	parameterOpen := "<parameter"
 	if dsml {
-		wrapperClose = "</|dsml|tool_calls>"
 		invokeOpenLen = len("<|dsml|invoke")
-		invokeClose = "</|dsml|invoke>"
 		parameterOpen = "<|dsml|parameter"
 	}
-	if findXMLCloseOutsideCDATA(captured, wrapperClose, invokeIdx) > invokeIdx {
+	if dsml && strings.HasPrefix(lower[invokeIdx:], "<|dsml invoke") {
+		invokeOpenLen = len("<|dsml invoke")
+		parameterOpen = "<|dsml parameter"
+	}
+	if dsml && strings.HasPrefix(lower[invokeIdx:], "<dsml|invoke") {
+		invokeOpenLen = len("<dsml|invoke")
+		parameterOpen = "<dsml|parameter"
+	}
+	if dsml && strings.HasPrefix(lower[invokeIdx:], "<dsml invoke") {
+		invokeOpenLen = len("<dsml invoke")
+		parameterOpen = "<dsml parameter"
+	}
+	if findAnyXMLCloseOutsideCDATA(captured, possibleWrapperCloseTags(dsml), invokeIdx) > invokeIdx {
 		return true
 	}
 
@@ -141,9 +148,15 @@ func shouldKeepBareInvokeCapture(captured string) bool {
 		return true
 	}
 
-	invokeCloseIdx := findXMLCloseOutsideCDATA(captured, invokeClose, startEnd+1)
+	invokeCloseIdx := findAnyXMLCloseOutsideCDATA(captured, possibleInvokeCloseTags(dsml), startEnd+1)
 	if invokeCloseIdx >= 0 {
-		afterClose := captured[invokeCloseIdx+len(invokeClose):]
+		afterClose := captured[invokeCloseIdx:]
+		for _, closeTag := range possibleInvokeCloseTags(dsml) {
+			if strings.HasPrefix(strings.ToLower(afterClose), closeTag) {
+				afterClose = afterClose[len(closeTag):]
+				break
+			}
+		}
 		return strings.TrimSpace(afterClose) == ""
 	}
 
@@ -156,15 +169,42 @@ func shouldKeepBareInvokeCapture(captured string) bool {
 func containsAnyToolCallWrapper(lower string) bool {
 	return strings.Contains(lower, "<tool_calls") ||
 		strings.Contains(lower, "<|dsml|tool_calls") ||
+		strings.Contains(lower, "<|dsml tool_calls") ||
 		strings.Contains(lower, "<dsml|tool_calls") ||
+		strings.Contains(lower, "<dsml tool_calls") ||
 		strings.Contains(lower, "<｜tool_calls") ||
 		strings.Contains(lower, "<|tool_calls")
+}
+
+func possibleWrapperCloseTags(dsml bool) []string {
+	if !dsml {
+		return []string{"</tool_calls>"}
+	}
+	return []string{"</|dsml|tool_calls>", "</|dsml tool_calls>", "</dsml|tool_calls>", "</dsml tool_calls>", "</｜tool_calls>", "</|tool_calls>"}
+}
+
+func possibleInvokeCloseTags(dsml bool) []string {
+	if !dsml {
+		return []string{"</invoke>"}
+	}
+	return []string{"</|dsml|invoke>", "</|dsml invoke>", "</dsml|invoke>", "</dsml invoke>", "</｜invoke>", "</|invoke>"}
+}
+
+func findAnyXMLCloseOutsideCDATA(s string, closeTags []string, start int) int {
+	best := -1
+	for _, closeTag := range closeTags {
+		idx := findXMLCloseOutsideCDATA(s, closeTag, start)
+		if idx >= 0 && (best < 0 || idx < best) {
+			best = idx
+		}
+	}
+	return best
 }
 
 func firstInvokeIndex(lower string) (int, bool) {
 	xmlIdx := strings.Index(lower, "<invoke")
 	// Check all DSML-like invoke prefixes.
-	dsmlPrefixes := []string{"<|dsml|invoke", "<dsml|invoke", "<｜invoke", "<|invoke"}
+	dsmlPrefixes := []string{"<|dsml|invoke", "<|dsml invoke", "<dsml|invoke", "<dsml invoke", "<｜invoke", "<|invoke"}
 	dsmlIdx := -1
 	for _, prefix := range dsmlPrefixes {
 		idx := strings.Index(lower, prefix)

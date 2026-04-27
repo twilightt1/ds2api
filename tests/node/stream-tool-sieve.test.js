@@ -57,6 +57,20 @@ test('parseToolCalls parses DSML shell as XML-compatible tool call', () => {
   assert.deepEqual(calls[0].input, { path: 'README.MD' });
 });
 
+test('parseToolCalls tolerates DSML space-separator typo', () => {
+  const payload = '<|DSML tool_calls><|DSML invoke name="Read"><|DSML parameter name="file_path"><![CDATA[/tmp/input.txt]]></|DSML parameter></|DSML invoke></|DSML tool_calls>';
+  const calls = parseToolCalls(payload, ['Read']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Read');
+  assert.deepEqual(calls[0].input, { file_path: '/tmp/input.txt' });
+});
+
+test('parseToolCalls ignores DSML space lookalike tag names', () => {
+  const payload = '<|DSML tool_calls_extra><|DSML invoke name="Read"><|DSML parameter name="file_path">/tmp/input.txt</|DSML parameter></|DSML invoke></|DSML tool_calls_extra>';
+  const calls = parseToolCalls(payload, ['Read']);
+  assert.equal(calls.length, 0);
+});
+
 test('parseToolCalls keeps canonical XML examples inside DSML CDATA', () => {
   const content = '<tool_calls><invoke name="demo"><parameter name="value">x</parameter></invoke></tool_calls>';
   const payload = `<|DSML|tool_calls><|DSML|invoke name="write_file"><|DSML|parameter name="path">notes.md</|DSML|parameter><|DSML|parameter name="content"><![CDATA[${content}]]></|DSML|parameter></|DSML|invoke></|DSML|tool_calls>`;
@@ -105,6 +119,32 @@ test('sieve emits tool_calls after prose mentions same wrapper variant', () => {
   assert.equal(finalCalls[0].name, 'Bash');
   assert.equal(finalCalls[0].input.command, 'git status');
   assert.equal(collectText(events).includes('Summary:'), true);
+});
+
+test('sieve emits tool_calls for DSML space-separator typo', () => {
+  const events = runSieve([
+    '准备读取文件。\n',
+    '<|DSML tool_calls>\n',
+    '<|DSML invoke name="Read">\n',
+    '<|DSML parameter name="file_path"><![CDATA[/tmp/input.txt]]></|DSML parameter>\n',
+    '</|DSML invoke>\n',
+    '</|DSML tool_calls>',
+  ], ['Read']);
+  const text = collectText(events);
+  const finalCalls = events.filter((evt) => evt.type === 'tool_calls').flatMap((evt) => evt.calls || []);
+  assert.equal(finalCalls.length, 1);
+  assert.equal(finalCalls[0].name, 'Read');
+  assert.equal(finalCalls[0].input.file_path, '/tmp/input.txt');
+  assert.equal(text.includes('准备读取文件'), true);
+  assert.equal(text.includes('<|DSML invoke'), false);
+});
+
+test('sieve keeps DSML space lookalike tag names as text', () => {
+  const input = '<|DSML tool_calls_extra><|DSML invoke name="Read"><|DSML parameter name="file_path">/tmp/input.txt</|DSML parameter></|DSML invoke></|DSML tool_calls_extra>';
+  const events = runSieve([input], ['Read']);
+  const finalCalls = events.filter((evt) => evt.type === 'tool_calls').flatMap((evt) => evt.calls || []);
+  assert.equal(finalCalls.length, 0);
+  assert.equal(collectText(events), input);
 });
 
 test('sieve preserves review body with alias mentions before real DSML tool calls', () => {

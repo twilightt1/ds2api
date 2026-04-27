@@ -39,6 +39,7 @@
 兼容修复：
 
 - 如果模型漏掉 opening wrapper，但后面仍输出了一个或多个 invoke 并以 closing wrapper 收尾，Go 解析链路会在解析前补回缺失的 opening wrapper。
+- 如果模型把 DSML 标签里的分隔符 `|` 写漏成空格（例如 `<|DSML tool_calls>` / `<|DSML invoke>` / `<|DSML parameter>`，或无 leading pipe 的 `<DSML tool_calls>` 形态），Go / Node 会在固定工具标签名范围内归一化；相似但非工具标签名（如 `tool_calls_extra`）仍按普通文本处理。
 - 这是一个针对常见模型失误的窄修复，不改变推荐输出格式；prompt 仍要求模型直接输出完整 DSML 外壳。
 
 ## 2) 非兼容内容
@@ -51,7 +52,7 @@
 
 在流式链路中（Go / Node 一致）：
 
-- DSML `<|DSML|tool_calls>` wrapper 及其兼容变体（`<dsml|tool_calls>`、`<｜tool_calls>`、`<|tool_calls>`）和 canonical `<tool_calls>` wrapper 都会进入结构化捕获
+- DSML `<|DSML|tool_calls>` wrapper、兼容变体（`<dsml|tool_calls>`、`<｜tool_calls>`、`<|tool_calls>`）、窄容错空格分隔形态（如 `<|DSML tool_calls>`）和 canonical `<tool_calls>` wrapper 都会进入结构化捕获
 - 如果流里直接从 invoke 开始，但后面补上了 closing wrapper，Go 流式筛分也会按缺失 opening wrapper 的修复路径尝试恢复
 - 已识别成功的工具调用不会再次回流到普通文本
 - 不符合新格式的块不会执行，并继续按原样文本透传
@@ -87,7 +88,7 @@ node --test tests/node/stream-tool-sieve.test.js
 
 - DSML `<|DSML|tool_calls>` wrapper 正常解析
 - legacy canonical `<tool_calls>` wrapper 正常解析
-- 别名变体（`<dsml|tool_calls>`、`<｜tool_calls>`、`<|tool_calls>`）正常解析
+- 别名变体（`<dsml|tool_calls>`、`<｜tool_calls>`、`<|tool_calls>`）和 DSML 空格分隔 typo（如 `<|DSML tool_calls>`）正常解析
 - 混搭标签（DSML wrapper + canonical inner）归一化后正常解析
 - 波浪线围栏 `~~~` 内的示例不执行
 - 嵌套围栏（4 反引号嵌套 3 反引号）内的示例不执行

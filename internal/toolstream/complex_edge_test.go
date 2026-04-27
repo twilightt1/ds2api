@@ -554,3 +554,64 @@ func TestSieve_ChineseReviewSamplePreservesInlineDSMLMention(t *testing.T) {
 		t.Fatalf("真实工具块不应泄漏到正文, got %q", text.String())
 	}
 }
+
+func TestSieve_ToleratesDSMLSpaceSeparatorTypo(t *testing.T) {
+	var state State
+	chunks := []string{
+		"准备读取文件。\n",
+		"<|DSML tool_calls>\n",
+		"<|DSML invoke name=\"Read\">\n",
+		"<|DSML parameter name=\"file_path\"><![CDATA[/tmp/input.txt]]></|DSML parameter>\n",
+		"</|DSML invoke>\n",
+		"</|DSML tool_calls>",
+	}
+	var events []Event
+	for _, c := range chunks {
+		events = append(events, ProcessChunk(&state, c, []string{"Read"})...)
+	}
+	events = append(events, Flush(&state, []string{"Read"})...)
+
+	var text strings.Builder
+	var filePath string
+	callCount := 0
+	for _, e := range events {
+		text.WriteString(e.Content)
+		for _, call := range e.ToolCalls {
+			callCount++
+			filePath, _ = call.Input["file_path"].(string)
+		}
+	}
+
+	if callCount != 1 {
+		t.Fatalf("应解析出 1 个工具调用，got %d, text=%q", callCount, text.String())
+	}
+	if filePath != "/tmp/input.txt" {
+		t.Fatalf("应解析出 file_path，got %q", filePath)
+	}
+	if !strings.Contains(text.String(), "准备读取文件") {
+		t.Fatalf("前置正文应保留, got %q", text.String())
+	}
+	if strings.Contains(text.String(), "<|DSML invoke") {
+		t.Fatalf("真实工具块不应泄漏到正文, got %q", text.String())
+	}
+}
+
+func TestSieve_DSMLSpaceLookalikeTagNameStaysText(t *testing.T) {
+	var state State
+	input := "<|DSML tool_calls_extra><|DSML invoke name=\"Read\"><|DSML parameter name=\"file_path\">/tmp/input.txt</|DSML parameter></|DSML invoke></|DSML tool_calls_extra>"
+	events := ProcessChunk(&state, input, []string{"Read"})
+	events = append(events, Flush(&state, []string{"Read"})...)
+
+	var text strings.Builder
+	callCount := 0
+	for _, e := range events {
+		text.WriteString(e.Content)
+		callCount += len(e.ToolCalls)
+	}
+	if callCount != 0 {
+		t.Fatalf("相似标签名不应触发工具调用，got %d", callCount)
+	}
+	if text.String() != input {
+		t.Fatalf("相似标签名应作为正文透传, got %q", text.String())
+	}
+}

@@ -444,6 +444,40 @@ func TestParseToolCallsParsesAfterFourBacktickFence(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsToleratesDSMLSpaceSeparatorTypo(t *testing.T) {
+	text := strings.Join([]string{
+		"<|DSML tool_calls>",
+		"<|DSML invoke name=\"Read\">",
+		"<|DSML parameter name=\"file_path\"><![CDATA[/tmp/input.txt]]></|DSML parameter>",
+		"</|DSML invoke>",
+		"</|DSML tool_calls>",
+	}, "\n")
+	calls := ParseToolCalls(text, []string{"Read"})
+	if len(calls) != 1 {
+		t.Fatalf("expected one call from DSML space-separator typo, got %#v", calls)
+	}
+	if calls[0].Name != "Read" {
+		t.Fatalf("expected Read call, got %#v", calls[0])
+	}
+	if got, _ := calls[0].Input["file_path"].(string); got != "/tmp/input.txt" {
+		t.Fatalf("expected file_path to parse, got %q", got)
+	}
+}
+
+func TestParseToolCallsDoesNotAcceptDSMLSpaceLookalikeTagName(t *testing.T) {
+	text := strings.Join([]string{
+		"<|DSML tool_calls_extra>",
+		"<|DSML invoke name=\"Read\">",
+		"<|DSML parameter name=\"file_path\">/tmp/input.txt</|DSML parameter>",
+		"</|DSML invoke>",
+		"</|DSML tool_calls_extra>",
+	}, "\n")
+	calls := ParseToolCalls(text, []string{"Read"})
+	if len(calls) != 0 {
+		t.Fatalf("expected no calls from lookalike tag, got %#v", calls)
+	}
+}
+
 func TestParseToolCallsSkipsProseMentionOfSameWrapperVariant(t *testing.T) {
 	text := strings.Join([]string{
 		"Summary: support canonical <tool_calls> and DSML <|DSML|tool_calls> wrappers.",

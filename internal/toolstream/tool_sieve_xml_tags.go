@@ -5,11 +5,13 @@ import "regexp"
 // --- XML tool call support for the streaming sieve ---
 
 //nolint:unused // kept as explicit tag inventory for future XML sieve refinements.
-var xmlToolCallClosingTags = []string{"</tool_calls>", "</|dsml|tool_calls>", "</dsml|tool_calls>", "</｜tool_calls>", "</|tool_calls>"}
+var xmlToolCallClosingTags = []string{"</tool_calls>", "</|dsml|tool_calls>", "</|dsml tool_calls>", "</dsml|tool_calls>", "</dsml tool_calls>", "</｜tool_calls>", "</|tool_calls>"}
 var xmlToolCallOpeningTags = []string{
 	"<tool_calls", "<invoke",
 	"<|dsml|tool_calls", "<|dsml|invoke",
+	"<|dsml tool_calls", "<|dsml invoke",
 	"<dsml|tool_calls", "<dsml|invoke",
+	"<dsml tool_calls", "<dsml invoke",
 	"<｜tool_calls", "<｜invoke",
 	"<|tool_calls", "<|invoke",
 }
@@ -18,7 +20,9 @@ var xmlToolCallOpeningTags = []string{
 // Order matters: longer/wrapper tags must be checked first.
 var xmlToolCallTagPairs = []struct{ open, close string }{
 	{"<|dsml|tool_calls", "</|dsml|tool_calls>"},
+	{"<|dsml tool_calls", "</|dsml tool_calls>"},
 	{"<dsml|tool_calls", "</dsml|tool_calls>"},
+	{"<dsml tool_calls", "</dsml tool_calls>"},
 	{"<｜tool_calls", "</｜tool_calls>"},
 	{"<|tool_calls", "</|tool_calls>"},
 	{"<tool_calls", "</tool_calls>"},
@@ -33,8 +37,12 @@ var xmlToolCallBlockPattern = regexp.MustCompile(`(?is)((?:<tool_calls\b|<\|dsml
 var xmlToolTagsToDetect = []string{
 	"<|dsml|tool_calls>", "<|dsml|tool_calls\n", "<|dsml|tool_calls ",
 	"<|dsml|invoke ", "<|dsml|invoke\n", "<|dsml|invoke\t", "<|dsml|invoke\r",
+	"<|dsml tool_calls>", "<|dsml tool_calls\n", "<|dsml tool_calls ",
+	"<|dsml invoke ", "<|dsml invoke\n", "<|dsml invoke\t", "<|dsml invoke\r",
 	"<dsml|tool_calls>", "<dsml|tool_calls\n", "<dsml|tool_calls ",
 	"<dsml|invoke ", "<dsml|invoke\n", "<dsml|invoke\t", "<dsml|invoke\r",
+	"<dsml tool_calls>", "<dsml tool_calls\n", "<dsml tool_calls ",
+	"<dsml invoke ", "<dsml invoke\n", "<dsml invoke\t", "<dsml invoke\r",
 	"<｜tool_calls>", "<｜tool_calls\n", "<｜tool_calls ",
 	"<｜invoke ", "<｜invoke\n", "<｜invoke\t", "<｜invoke\r",
 	"<|tool_calls>", "<|tool_calls\n", "<|tool_calls ",

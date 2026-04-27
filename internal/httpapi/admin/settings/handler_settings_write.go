@@ -28,6 +28,10 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	currentInputEnabledSet := hasNestedSettingsKey(req, "current_input_file", "enabled")
+	currentInputMinCharsSet := hasNestedSettingsKey(req, "current_input_file", "min_chars")
+	thinkingInjectionEnabledSet := hasNestedSettingsKey(req, "thinking_injection", "enabled")
+	thinkingInjectionPromptSet := hasNestedSettingsKey(req, "thinking_injection", "prompt")
 
 	if err := h.Store.Update(func(c *config.Config) error {
 		if adminCfg != nil {
@@ -80,16 +84,24 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if currentInputCfg != nil {
-			c.CurrentInputFile.Enabled = currentInputCfg.Enabled
-			if currentInputCfg.Enabled != nil && *currentInputCfg.Enabled {
+			if currentInputEnabledSet {
+				c.CurrentInputFile.Enabled = currentInputCfg.Enabled
+			}
+			if currentInputEnabledSet && currentInputCfg.Enabled != nil && *currentInputCfg.Enabled {
 				disabled := false
 				c.HistorySplit.Enabled = &disabled
 			}
-			c.CurrentInputFile.MinChars = currentInputCfg.MinChars
+			if currentInputMinCharsSet {
+				c.CurrentInputFile.MinChars = currentInputCfg.MinChars
+			}
 		}
 		if thinkingInjCfg != nil {
-			c.ThinkingInjection.Enabled = thinkingInjCfg.Enabled
-			c.ThinkingInjection.Prompt = thinkingInjCfg.Prompt
+			if thinkingInjectionEnabledSet {
+				c.ThinkingInjection.Enabled = thinkingInjCfg.Enabled
+			}
+			if thinkingInjectionPromptSet {
+				c.ThinkingInjection.Prompt = thinkingInjCfg.Prompt
+			}
 		}
 		if aliasMap != nil {
 			c.ModelAliases = aliasMap
@@ -143,4 +155,13 @@ func (h *Handler) updateSettingsPassword(w http.ResponseWriter, r *http.Request)
 		"force_relogin":        true,
 		"jwt_valid_after_unix": now,
 	})
+}
+
+func hasNestedSettingsKey(req map[string]any, section, key string) bool {
+	raw, ok := req[section].(map[string]any)
+	if !ok {
+		return false
+	}
+	_, exists := raw[key]
+	return exists
 }
