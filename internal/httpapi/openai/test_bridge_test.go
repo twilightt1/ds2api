@@ -108,10 +108,6 @@ func registerOpenAITestRoutes(r chi.Router, h *openAITestSurface) {
 	r.Post("/v1/embeddings", h.embeddingsHandler().Embeddings)
 }
 
-func splitOpenAIHistoryMessages(messages []any, triggerAfterTurns int) ([]any, []any) {
-	return history.SplitOpenAIHistoryMessages(messages, triggerAfterTurns)
-}
-
 func buildOpenAICurrentInputContextTranscript(messages []any) string {
 	return promptcompat.BuildOpenAICurrentInputContextTranscript(messages)
 }

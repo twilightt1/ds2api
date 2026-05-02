@@ -172,10 +172,6 @@ func TestConfigJSONRoundtrip(t *testing.T) {
 		AutoDelete: AutoDeleteConfig{
 			Mode: "single",
 		},
-		HistorySplit: HistorySplitConfig{
-			Enabled:           &trueVal,
-			TriggerAfterTurns: func() *int { v := 2; return &v }(),
-		},
 		Runtime: RuntimeConfig{
 			TokenRefreshIntervalHours: 12,
 		},
@@ -214,12 +210,6 @@ func TestConfigJSONRoundtrip(t *testing.T) {
 	}
 	if decoded.AutoDelete.Mode != "single" {
 		t.Fatalf("unexpected auto delete mode: %#v", decoded.AutoDelete.Mode)
-	}
-	if decoded.HistorySplit.Enabled == nil || !*decoded.HistorySplit.Enabled {
-		t.Fatalf("unexpected history split enabled: %#v", decoded.HistorySplit.Enabled)
-	}
-	if decoded.HistorySplit.TriggerAfterTurns == nil || *decoded.HistorySplit.TriggerAfterTurns != 2 {
-		t.Fatalf("unexpected history split trigger_after_turns: %#v", decoded.HistorySplit.TriggerAfterTurns)
 	}
 	if decoded.Compat.WideInputStrictOutput == nil || !*decoded.Compat.WideInputStrictOutput {
 		t.Fatalf("unexpected compat wide_input_strict_output: %#v", decoded.Compat.WideInputStrictOutput)
@@ -290,22 +280,34 @@ func TestConfigUnmarshalJSONIgnoresRemovedLegacyModelMappings(t *testing.T) {
 	}
 }
 
+func TestConfigUnmarshalJSONIgnoresRemovedHistorySplit(t *testing.T) {
+	raw := `{"keys":["k1"],"history_split":{"enabled":true,"trigger_after_turns":2}}`
+	var cfg Config
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if _, ok := cfg.AdditionalFields["history_split"]; ok {
+		t.Fatalf("expected removed legacy field not to persist in additional fields: %#v", cfg.AdditionalFields)
+	}
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	if strings.Contains(string(out), "history_split") {
+		t.Fatalf("expected removed history_split field not to marshal, got %s", out)
+	}
+}
+
 // ─── Config.Clone ────────────────────────────────────────────────────
 
 func TestConfigCloneIsDeepCopy(t *testing.T) {
 	falseVal := false
-	trueVal := true
-	turns := 2
 	cfg := Config{
 		Keys:         []string{"key1"},
 		Accounts:     []Account{{Email: "user@test.com", Token: "token"}},
 		ModelAliases: map[string]string{"claude-sonnet-4-6": "deepseek-v4-flash"},
 		Compat: CompatConfig{
 			StripReferenceMarkers: &falseVal,
-		},
-		HistorySplit: HistorySplitConfig{
-			Enabled:           &trueVal,
-			TriggerAfterTurns: &turns,
 		},
 		AdditionalFields: map[string]any{"custom": "value"},
 	}
@@ -318,12 +320,6 @@ func TestConfigCloneIsDeepCopy(t *testing.T) {
 	cfg.ModelAliases["claude-sonnet-4-6"] = "modified-model"
 	if cfg.Compat.StripReferenceMarkers != nil {
 		*cfg.Compat.StripReferenceMarkers = true
-	}
-	if cfg.HistorySplit.Enabled != nil {
-		*cfg.HistorySplit.Enabled = false
-	}
-	if cfg.HistorySplit.TriggerAfterTurns != nil {
-		*cfg.HistorySplit.TriggerAfterTurns = 5
 	}
 
 	// Cloned should not be affected
@@ -338,12 +334,6 @@ func TestConfigCloneIsDeepCopy(t *testing.T) {
 	}
 	if cloned.Compat.StripReferenceMarkers == nil || *cloned.Compat.StripReferenceMarkers {
 		t.Fatalf("clone compat was affected: %#v", cloned.Compat.StripReferenceMarkers)
-	}
-	if cloned.HistorySplit.Enabled == nil || !*cloned.HistorySplit.Enabled {
-		t.Fatalf("clone history split enabled was affected: %#v", cloned.HistorySplit.Enabled)
-	}
-	if cloned.HistorySplit.TriggerAfterTurns == nil || *cloned.HistorySplit.TriggerAfterTurns != 2 {
-		t.Fatalf("clone history split trigger was affected: %#v", cloned.HistorySplit.TriggerAfterTurns)
 	}
 }
 

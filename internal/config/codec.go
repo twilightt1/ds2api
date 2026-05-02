@@ -45,9 +45,6 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		m["embeddings"] = c.Embeddings
 	}
 	m["auto_delete"] = c.AutoDelete
-	if c.HistorySplit.Enabled != nil || c.HistorySplit.TriggerAfterTurns != nil {
-		m["history_split"] = c.HistorySplit
-	}
 	if c.CurrentInputFile.Enabled != nil || c.CurrentInputFile.MinChars != 0 {
 		m["current_input_file"] = c.CurrentInputFile
 	}
@@ -121,9 +118,7 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 				return fmt.Errorf("invalid field %q: %w", k, err)
 			}
 		case "history_split":
-			if err := json.Unmarshal(v, &c.HistorySplit); err != nil {
-				return fmt.Errorf("invalid field %q: %w", k, err)
-			}
+			// Removed legacy split field is ignored instead of persisted.
 		case "current_input_file":
 			if err := json.Unmarshal(v, &c.CurrentInputFile); err != nil {
 				return fmt.Errorf("invalid field %q: %w", k, err)
@@ -167,10 +162,6 @@ func (c Config) Clone() Config {
 		Responses:  c.Responses,
 		Embeddings: c.Embeddings,
 		AutoDelete: c.AutoDelete,
-		HistorySplit: HistorySplitConfig{
-			Enabled:           cloneBoolPtr(c.HistorySplit.Enabled),
-			TriggerAfterTurns: cloneIntPtr(c.HistorySplit.TriggerAfterTurns),
-		},
 		CurrentInputFile: CurrentInputFileConfig{
 			Enabled:  cloneBoolPtr(c.CurrentInputFile.Enabled),
 			MinChars: c.CurrentInputFile.MinChars,
@@ -201,14 +192,6 @@ func cloneStringMap(in map[string]string) map[string]string {
 }
 
 func cloneBoolPtr(in *bool) *bool {
-	if in == nil {
-		return nil
-	}
-	v := *in
-	return &v
-}
-
-func cloneIntPtr(in *int) *int {
 	if in == nil {
 		return nil
 	}

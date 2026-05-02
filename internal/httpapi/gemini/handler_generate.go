@@ -83,6 +83,7 @@ func (h *Handler) handleGeminiDirect(w http.ResponseWriter, r *http.Request, str
 	result, outErr := completionruntime.ExecuteNonStreamWithRetry(r.Context(), h.DS, a, stdReq, completionruntime.Options{
 		StripReferenceMarkers: h.compatStripReferenceMarkers(),
 		RetryEnabled:          true,
+		CurrentInputFile:      h.Store,
 	})
 	if outErr != nil {
 		writeGeminiError(w, outErr.Status, outErr.Message)
@@ -93,12 +94,15 @@ func (h *Handler) handleGeminiDirect(w http.ResponseWriter, r *http.Request, str
 }
 
 func (h *Handler) handleGeminiDirectStream(w http.ResponseWriter, r *http.Request, a *auth.RequestAuth, stdReq promptcompat.StandardRequest) {
-	start, outErr := completionruntime.StartCompletion(r.Context(), h.DS, a, stdReq, completionruntime.Options{})
+	start, outErr := completionruntime.StartCompletion(r.Context(), h.DS, a, stdReq, completionruntime.Options{
+		CurrentInputFile: h.Store,
+	})
 	if outErr != nil {
 		writeGeminiError(w, outErr.Status, outErr.Message)
 		return
 	}
-	h.handleStreamGenerateContent(w, r, start.Response, stdReq.ResponseModel, stdReq.PromptTokenText, stdReq.Thinking, stdReq.Search, stdReq.ToolNames, stdReq.ToolsRaw)
+	streamReq := start.Request
+	h.handleStreamGenerateContent(w, r, start.Response, streamReq.ResponseModel, streamReq.PromptTokenText, streamReq.Thinking, streamReq.Search, streamReq.ToolNames, streamReq.ToolsRaw)
 }
 
 func (h *Handler) proxyViaOpenAI(w http.ResponseWriter, r *http.Request, stream bool) bool {

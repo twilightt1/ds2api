@@ -753,7 +753,6 @@ Hot-updates runtime settings. Supported fields:
 - `auto_delete.mode`
 - `current_input_file.enabled` / `current_input_file.min_chars`
 - `model_aliases`
-- `history_split` is retained only for legacy config compatibility and no longer affects requests
 - `toolcall` policy is fixed and is no longer writable through settings
 
 ### `POST /admin/settings/password`
@@ -777,7 +776,7 @@ Imports full config with:
 
 The request can send config directly, or wrapped as `{"config": {...}, "mode":"merge"}`.
 Query params `?mode=merge` / `?mode=replace` are also supported.
-`replace` mode replaces the full config shape while preserving Vercel sync metadata. `merge` mode merges `keys`, `api_keys`, `accounts`, and `model_aliases`, and overwrites non-empty fields under `admin`, `runtime`, `responses`, and `embeddings`. Manage `compat`, `auto_delete`, and `current_input_file` via `/admin/settings` or the config file; `history_split` remains only for legacy compatibility; legacy `toolcall` fields are ignored.
+`replace` mode replaces the full config shape while preserving Vercel sync metadata. `merge` mode merges `keys`, `api_keys`, `accounts`, and `model_aliases`, and overwrites non-empty fields under `admin`, `runtime`, `responses`, and `embeddings`. Manage `compat`, `auto_delete`, and `current_input_file` via `/admin/settings` or the config file; legacy `toolcall` fields are ignored.
 
 > Note: `merge` mode does not update `compat`, `auto_delete`, or `current_input_file`.
 

@@ -18,8 +18,6 @@ type mockOpenAIConfig struct {
 	earlyEmit           string
 	responsesTTL        int
 	embedProv           string
-	historySplitEnabled bool
-	historySplitTurns   int
 	currentInputEnabled bool
 	currentInputMin     int
 	thinkingInjection   *bool
@@ -41,14 +39,7 @@ func (m mockOpenAIConfig) AutoDeleteMode() string {
 	}
 	return m.autoDeleteMode
 }
-func (m mockOpenAIConfig) AutoDeleteSessions() bool  { return false }
-func (m mockOpenAIConfig) HistorySplitEnabled() bool { return m.historySplitEnabled }
-func (m mockOpenAIConfig) HistorySplitTriggerAfterTurns() int {
-	if m.historySplitTurns <= 0 {
-		return 1
-	}
-	return m.historySplitTurns
-}
+func (m mockOpenAIConfig) AutoDeleteSessions() bool      { return false }
 func (m mockOpenAIConfig) CurrentInputFileEnabled() bool { return m.currentInputEnabled }
 func (m mockOpenAIConfig) CurrentInputFileMinChars() int {
 	return m.currentInputMin

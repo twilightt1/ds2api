@@ -62,8 +62,7 @@ func (streamStatusManagedAuthStub) DetermineCaller(_ *http.Request) (*auth.Reque
 func (streamStatusManagedAuthStub) Release(_ *auth.RequestAuth) {}
 
 func TestBuildOpenAICurrentInputContextTranscriptUsesNumberedHistorySections(t *testing.T) {
-	_, historyMessages := splitOpenAIHistoryMessages(historySplitTestMessages(), 1)
-	transcript := buildOpenAICurrentInputContextTranscript(historyMessages)
+	transcript := buildOpenAICurrentInputContextTranscript(historySplitTestMessages())
 
 	if strings.Contains(transcript, "[file content end]") || strings.Contains(transcript, "[file content begin]") || strings.Contains(transcript, "[file name]:") {
 		t.Fatalf("expected transcript without file wrapper tags, got %q", transcript)
@@ -75,11 +74,14 @@ func TestBuildOpenAICurrentInputContextTranscriptUsesNumberedHistorySections(t *
 		t.Fatalf("expected history transcript description, got %q", transcript)
 	}
 	for _, want := range []string{
-		"=== 1. USER ===",
-		"=== 2. ASSISTANT ===",
-		"=== 3. TOOL ===",
+		"=== 1. SYSTEM ===",
+		"=== 2. USER ===",
+		"=== 3. ASSISTANT ===",
+		"=== 4. TOOL ===",
+		"=== 5. USER ===",
 		"first user turn",
 		"tool result",
+		"latest user turn",
 		"[reasoning_content]",
 		"hidden reasoning",
 		"<|DSML|tool_calls>",
@@ -87,38 +89,6 @@ func TestBuildOpenAICurrentInputContextTranscriptUsesNumberedHistorySections(t *
 		if !strings.Contains(transcript, want) {
 			t.Fatalf("expected transcript to contain %q, got %q", want, transcript)
 		}
-	}
-}
-
-func TestSplitOpenAIHistoryMessagesUsesLatestUserTurn(t *testing.T) {
-	messages := []any{
-		map[string]any{"role": "system", "content": "system instructions"},
-		map[string]any{"role": "user", "content": "first user turn"},
-		map[string]any{"role": "assistant", "content": "first assistant turn"},
-		map[string]any{"role": "user", "content": "middle user turn"},
-		map[string]any{"role": "assistant", "content": "middle assistant turn"},
-		map[string]any{"role": "user", "content": "latest user turn"},
-	}
-
-	promptMessages, historyMessages := splitOpenAIHistoryMessages(messages, 1)
-	if len(promptMessages) == 0 || len(historyMessages) == 0 {
-		t.Fatalf("expected both prompt and history messages, got prompt=%d history=%d", len(promptMessages), len(historyMessages))
-	}
-
-	promptText, _ := promptcompat.BuildOpenAIPrompt(promptMessages, nil, "", defaultToolChoicePolicy(), true)
-	if !strings.Contains(promptText, "latest user turn") {
-		t.Fatalf("expected latest user turn in prompt, got %s", promptText)
-	}
-	if strings.Contains(promptText, "middle user turn") {
-		t.Fatalf("expected middle user turn to be moved into history, got %s", promptText)
-	}
-
-	historyText := buildOpenAICurrentInputContextTranscript(historyMessages)
-	if !strings.Contains(historyText, "middle user turn") {
-		t.Fatalf("expected middle user turn in split history, got %s", historyText)
-	}
-	if strings.Contains(historyText, "latest user turn") {
-		t.Fatalf("expected latest user turn to remain live, got %s", historyText)
 	}
 }
 
@@ -714,10 +684,6 @@ func TestCurrentInputFileWorksAcrossAutoDeleteModes(t *testing.T) {
 			}
 		})
 	}
-}
-
-func defaultToolChoicePolicy() promptcompat.ToolChoicePolicy {
-	return promptcompat.DefaultToolChoicePolicy()
 }
 
 func boolPtr(v bool) *bool {

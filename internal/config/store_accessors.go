@@ -163,14 +163,6 @@ func (s *Store) AutoDeleteSessions() bool {
 	return s.AutoDeleteMode() != "none"
 }
 
-func (s *Store) HistorySplitEnabled() bool {
-	return false
-}
-
-func (s *Store) HistorySplitTriggerAfterTurns() int {
-	return 1
-}
-
 func (s *Store) CurrentInputFileEnabled() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

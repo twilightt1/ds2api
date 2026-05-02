@@ -19,7 +19,6 @@ type Config struct {
 	Responses         ResponsesConfig         `json:"responses,omitempty"`
 	Embeddings        EmbeddingsConfig        `json:"embeddings,omitempty"`
 	AutoDelete        AutoDeleteConfig        `json:"auto_delete"`
-	HistorySplit      HistorySplitConfig      `json:"history_split"`
 	CurrentInputFile  CurrentInputFileConfig  `json:"current_input_file,omitempty"`
 	ThinkingInjection ThinkingInjectionConfig `json:"thinking_injection,omitempty"`
 	VercelSyncHash    string                  `json:"_vercel_sync_hash,omitempty"`
@@ -171,11 +170,6 @@ type EmbeddingsConfig struct {
 type AutoDeleteConfig struct {
 	Mode     string `json:"mode,omitempty"`
 	Sessions bool   `json:"sessions,omitempty"`
-}
-
-type HistorySplitConfig struct {
-	Enabled           *bool `json:"enabled,omitempty"`
-	TriggerAfterTurns *int  `json:"trigger_after_turns,omitempty"`
 }
 
 type CurrentInputFileConfig struct {

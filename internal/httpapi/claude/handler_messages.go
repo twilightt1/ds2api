@@ -86,6 +86,7 @@ func (h *Handler) handleClaudeDirect(w http.ResponseWriter, r *http.Request) boo
 	result, outErr := completionruntime.ExecuteNonStreamWithRetry(r.Context(), h.DS, a, norm.Standard, completionruntime.Options{
 		StripReferenceMarkers: h.compatStripReferenceMarkers(),
 		RetryEnabled:          true,
+		CurrentInputFile:      h.Store,
 	})
 	if outErr != nil {
 		writeClaudeError(w, outErr.Status, outErr.Message)
@@ -101,12 +102,15 @@ func (h *Handler) handleClaudeDirect(w http.ResponseWriter, r *http.Request) boo
 }
 
 func (h *Handler) handleClaudeDirectStream(w http.ResponseWriter, r *http.Request, a *auth.RequestAuth, stdReq promptcompat.StandardRequest) {
-	start, outErr := completionruntime.StartCompletion(r.Context(), h.DS, a, stdReq, completionruntime.Options{})
+	start, outErr := completionruntime.StartCompletion(r.Context(), h.DS, a, stdReq, completionruntime.Options{
+		CurrentInputFile: h.Store,
+	})
 	if outErr != nil {
 		writeClaudeError(w, outErr.Status, outErr.Message)
 		return
 	}
-	h.handleClaudeStreamRealtime(w, r, start.Response, stdReq.ResponseModel, stdReq.Messages, stdReq.Thinking, stdReq.Search, stdReq.ToolNames, stdReq.ToolsRaw)
+	streamReq := start.Request
+	h.handleClaudeStreamRealtime(w, r, start.Response, streamReq.ResponseModel, streamReq.Messages, streamReq.Thinking, streamReq.Search, streamReq.ToolNames, streamReq.ToolsRaw)
 }
 
 func (h *Handler) proxyViaOpenAI(w http.ResponseWriter, r *http.Request, store ConfigReader) bool {

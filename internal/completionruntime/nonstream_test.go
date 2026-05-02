@@ -8,13 +8,20 @@ import (
 	"testing"
 
 	"ds2api/internal/auth"
+	dsclient "ds2api/internal/deepseek/client"
 	"ds2api/internal/promptcompat"
 )
 
 type fakeDeepSeekCaller struct {
 	responses []*http.Response
 	payloads  []map[string]any
+	uploads   []dsclient.UploadFileRequest
 }
+
+type currentInputRuntimeConfig struct{}
+
+func (currentInputRuntimeConfig) CurrentInputFileEnabled() bool { return true }
+func (currentInputRuntimeConfig) CurrentInputFileMinChars() int { return 0 }
 
 func (f *fakeDeepSeekCaller) CreateSession(context.Context, *auth.RequestAuth, int) (string, error) {
 	return "session-1", nil
@@ -22,6 +29,11 @@ func (f *fakeDeepSeekCaller) CreateSession(context.Context, *auth.RequestAuth, i
 
 func (f *fakeDeepSeekCaller) GetPow(context.Context, *auth.RequestAuth, int) (string, error) {
 	return "pow", nil
+}
+
+func (f *fakeDeepSeekCaller) UploadFile(_ context.Context, _ *auth.RequestAuth, req dsclient.UploadFileRequest, _ int) (*dsclient.UploadFileResult, error) {
+	f.uploads = append(f.uploads, req)
+	return &dsclient.UploadFileResult{ID: "file-runtime-1"}, nil
 }
 
 func (f *fakeDeepSeekCaller) CallCompletion(_ context.Context, _ *auth.RequestAuth, payload map[string]any, _ string, _ int) (*http.Response, error) {
@@ -104,6 +116,48 @@ func TestExecuteNonStreamWithRetryUsesParentMessageForEmptyRetry(t *testing.T) {
 	}
 	if result.Turn.Text != "ok" {
 		t.Fatalf("retry text mismatch: %q", result.Turn.Text)
+	}
+}
+
+func TestStartCompletionAppliesCurrentInputFileGlobally(t *testing.T) {
+	ds := &fakeDeepSeekCaller{responses: []*http.Response{sseHTTPResponse(http.StatusOK, `data: {"p":"response/content","v":"ok"}`)}}
+	stdReq := promptcompat.StandardRequest{
+		Surface:         "test_adapter",
+		RequestedModel:  "deepseek-v4-flash",
+		ResolvedModel:   "deepseek-v4-flash",
+		ResponseModel:   "deepseek-v4-flash",
+		PromptTokenText: "first user turn",
+		FinalPrompt:     "first user turn",
+		Messages: []any{
+			map[string]any{"role": "user", "content": "first user turn"},
+		},
+	}
+
+	start, outErr := StartCompletion(context.Background(), ds, &auth.RequestAuth{DeepSeekToken: "token"}, stdReq, Options{
+		CurrentInputFile: currentInputRuntimeConfig{},
+	})
+	if outErr != nil {
+		t.Fatalf("unexpected output error: %#v", outErr)
+	}
+	if len(ds.uploads) != 1 {
+		t.Fatalf("expected current input upload, got %d", len(ds.uploads))
+	}
+	if got := ds.uploads[0].Filename; got != "DS2API_HISTORY.txt" {
+		t.Fatalf("upload filename=%q want DS2API_HISTORY.txt", got)
+	}
+	if len(ds.payloads) != 1 {
+		t.Fatalf("expected one completion payload, got %d", len(ds.payloads))
+	}
+	refIDs, _ := ds.payloads[0]["ref_file_ids"].([]any)
+	if len(refIDs) != 1 || refIDs[0] != "file-runtime-1" {
+		t.Fatalf("expected uploaded file id in ref_file_ids, got %#v", ds.payloads[0]["ref_file_ids"])
+	}
+	prompt, _ := ds.payloads[0]["prompt"].(string)
+	if !strings.Contains(prompt, "Continue from the latest state in the attached DS2API_HISTORY.txt context.") {
+		t.Fatalf("expected continuation prompt, got %q", prompt)
+	}
+	if !start.Request.CurrentInputFileApplied || !strings.Contains(start.Request.PromptTokenText, "# DS2API_HISTORY.txt") {
+		t.Fatalf("expected prepared request to carry current input file state, got %#v", start.Request)
 	}
 }
 
