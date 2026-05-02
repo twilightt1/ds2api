@@ -254,7 +254,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 		OnParsed: func(parsed sse.LineResult) streamengine.ParsedDecision {
 			decision := streamRuntime.onParsed(parsed)
 			if historySession != nil {
-				historySession.progress(streamRuntime.thinking.String(), streamRuntime.text.String())
+				historySession.progress(streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String())
 			}
 			return decision
 		},
@@ -268,14 +268,14 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 				return
 			}
 			if streamRuntime.finalErrorMessage != "" {
-				historySession.error(streamRuntime.finalErrorStatus, streamRuntime.finalErrorMessage, streamRuntime.finalErrorCode, streamRuntime.thinking.String(), streamRuntime.text.String())
+				historySession.error(streamRuntime.finalErrorStatus, streamRuntime.finalErrorMessage, streamRuntime.finalErrorCode, streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String())
 				return
 			}
 			historySession.success(http.StatusOK, streamRuntime.finalThinking, streamRuntime.finalText, streamRuntime.finalFinishReason, streamRuntime.finalUsage)
 		},
 		OnContextDone: func() {
 			if historySession != nil {
-				historySession.stopped(streamRuntime.thinking.String(), streamRuntime.text.String(), string(streamengine.StopReasonContextCancelled))
+				historySession.stopped(streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String(), string(streamengine.StopReasonContextCancelled))
 			}
 		},
 	})

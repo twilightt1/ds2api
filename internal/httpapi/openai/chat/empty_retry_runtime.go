@@ -238,7 +238,7 @@ func (h *Handler) consumeChatStreamAttempt(r *http.Request, resp *http.Response,
 		OnParsed: func(parsed sse.LineResult) streamengine.ParsedDecision {
 			decision := streamRuntime.onParsed(parsed)
 			if historySession != nil {
-				historySession.progress(streamRuntime.thinking.String(), streamRuntime.text.String())
+				historySession.progress(streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String())
 			}
 			return decision
 		},
@@ -250,7 +250,7 @@ func (h *Handler) consumeChatStreamAttempt(r *http.Request, resp *http.Response,
 		OnContextDone: func() {
 			streamRuntime.markContextCancelled()
 			if historySession != nil {
-				historySession.stopped(streamRuntime.thinking.String(), streamRuntime.text.String(), string(streamengine.StopReasonContextCancelled))
+				historySession.stopped(streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String(), string(streamengine.StopReasonContextCancelled))
 			}
 		},
 	})
@@ -270,7 +270,7 @@ func recordChatStreamHistory(streamRuntime *chatStreamRuntime, historySession *c
 		return
 	}
 	if streamRuntime.finalErrorMessage != "" {
-		historySession.error(streamRuntime.finalErrorStatus, streamRuntime.finalErrorMessage, streamRuntime.finalErrorCode, streamRuntime.thinking.String(), streamRuntime.text.String())
+		historySession.error(streamRuntime.finalErrorStatus, streamRuntime.finalErrorMessage, streamRuntime.finalErrorCode, streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String())
 		return
 	}
 	historySession.success(http.StatusOK, streamRuntime.finalThinking, streamRuntime.finalText, streamRuntime.finalFinishReason, streamRuntime.finalUsage)
@@ -279,7 +279,7 @@ func recordChatStreamHistory(streamRuntime *chatStreamRuntime, historySession *c
 func failChatStreamRetry(streamRuntime *chatStreamRuntime, historySession *chatHistorySession, status int, message, code string) {
 	streamRuntime.sendFailedChunk(status, message, code)
 	if historySession != nil {
-		historySession.error(status, message, code, streamRuntime.thinking.String(), streamRuntime.text.String())
+		historySession.error(status, message, code, streamRuntime.accumulator.Thinking.String(), streamRuntime.accumulator.Text.String())
 	}
 }
 

@@ -1,6 +1,9 @@
 package sse
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 const minContinuationSnapshotLen = 32
 
@@ -11,7 +14,7 @@ func TrimContinuationOverlap(existing, incoming string) string {
 	if existing == "" {
 		return incoming
 	}
-	if len(incoming) < minContinuationSnapshotLen {
+	if utf8.RuneCountInString(incoming) < minContinuationSnapshotLen {
 		return incoming
 	}
 	if len(incoming) > len(existing) {
@@ -33,7 +36,7 @@ func TrimContinuationOverlapFromBuilder(existing *strings.Builder, incoming stri
 	if existing == nil || existing.Len() == 0 {
 		return incoming
 	}
-	if len(incoming) < minContinuationSnapshotLen {
+	if utf8.RuneCountInString(incoming) < minContinuationSnapshotLen {
 		return incoming
 	}
 	existingLen := existing.Len()

@@ -7,6 +7,7 @@ import (
 
 	"ds2api/internal/config"
 	openaifmt "ds2api/internal/format/openai"
+	"ds2api/internal/httpapi/openai/shared"
 	"ds2api/internal/promptcompat"
 	"ds2api/internal/sse"
 	streamengine "ds2api/internal/stream"
@@ -36,31 +37,27 @@ type responsesStreamRuntime struct {
 	toolCallsEmitted     bool
 	toolCallsDoneEmitted bool
 
-	sieve                 toolstream.State
-	rawThinking           strings.Builder
-	thinking              strings.Builder
-	toolDetectionThinking strings.Builder
-	rawText               strings.Builder
-	text                  strings.Builder
-	visibleText           strings.Builder
-	responseMessageID     int
-	streamToolCallIDs     map[int]string
-	functionItemIDs       map[int]string
-	functionOutputIDs     map[int]int
-	functionArgs          map[int]string
-	functionDone          map[int]bool
-	functionAdded         map[int]bool
-	functionNames         map[int]string
-	messageItemID         string
-	messageOutputID       int
-	nextOutputID          int
-	messageAdded          bool
-	messagePartAdded      bool
-	sequence              int
-	failed                bool
-	finalErrorStatus      int
-	finalErrorMessage     string
-	finalErrorCode        string
+	sieve             toolstream.State
+	accumulator       shared.StreamAccumulator
+	visibleText       strings.Builder
+	responseMessageID int
+	streamToolCallIDs map[int]string
+	functionItemIDs   map[int]string
+	functionOutputIDs map[int]int
+	functionArgs      map[int]string
+	functionDone      map[int]bool
+	functionAdded     map[int]bool
+	functionNames     map[int]string
+	messageItemID     string
+	messageOutputID   int
+	nextOutputID      int
+	messageAdded      bool
+	messagePartAdded  bool
+	sequence          int
+	failed            bool
+	finalErrorStatus  int
+	finalErrorMessage string
+	finalErrorCode    string
 
 	persistResponse func(obj map[string]any)
 }
@@ -108,6 +105,11 @@ func newResponsesStreamRuntime(
 		toolChoice:            toolChoice,
 		traceID:               traceID,
 		persistResponse:       persistResponse,
+		accumulator: shared.StreamAccumulator{
+			ThinkingEnabled:       thinkingEnabled,
+			SearchEnabled:         searchEnabled,
+			StripReferenceMarkers: stripReferenceMarkers,
+		},
 	}
 }
 
@@ -155,10 +157,10 @@ func (s *responsesStreamRuntime) finalize(finishReason string, deferEmptyOutput 
 		s.processToolStreamEvents(toolstream.Flush(&s.sieve, s.toolNames), true, true)
 	}
 
-	finalThinking := s.thinking.String()
-	finalToolDetectionThinking := s.toolDetectionThinking.String()
-	finalText := cleanVisibleOutput(s.text.String(), s.stripReferenceMarkers)
-	textParsed := detectAssistantToolCalls(s.rawText.String(), finalText, s.rawThinking.String(), finalToolDetectionThinking, s.toolNames)
+	finalThinking := s.accumulator.Thinking.String()
+	finalToolDetectionThinking := s.accumulator.ToolDetectionThinking.String()
+	finalText := cleanVisibleOutput(s.accumulator.Text.String(), s.stripReferenceMarkers)
+	textParsed := detectAssistantToolCalls(s.accumulator.RawText.String(), finalText, s.accumulator.RawThinking.String(), finalToolDetectionThinking, s.toolNames)
 	detected := textParsed.Calls
 	s.logToolPolicyRejections(textParsed)
 
@@ -228,50 +230,27 @@ func (s *responsesStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Pa
 		return streamengine.ParsedDecision{Stop: true}
 	}
 
-	contentSeen := false
 	batch := responsesDeltaBatch{runtime: s}
-	for _, p := range parsed.ToolDetectionThinkingParts {
-		trimmed := sse.TrimContinuationOverlapFromBuilder(&s.toolDetectionThinking, p.Text)
-		if trimmed != "" {
-			s.toolDetectionThinking.WriteString(trimmed)
-		}
-	}
-	for _, p := range parsed.Parts {
+	accumulated := s.accumulator.Apply(parsed)
+	for _, p := range accumulated.Parts {
 		if p.Type == "thinking" {
-			s.rawThinking.WriteString(p.Text)
-			contentSeen = true
-			if !s.thinkingEnabled {
-				continue
-			}
-			cleanedText := cleanVisibleOutput(p.Text, s.stripReferenceMarkers)
-			if cleanedText == "" {
-				continue
-			}
-			s.thinking.WriteString(cleanedText)
-			batch.append("reasoning", cleanedText)
+			batch.append("reasoning", p.VisibleText)
 			continue
 		}
-
-		s.rawText.WriteString(p.Text)
-		contentSeen = true
-		cleanedText := cleanVisibleOutput(p.Text, s.stripReferenceMarkers)
-		if s.searchEnabled && sse.IsCitation(cleanedText) {
+		if p.RawText == "" {
 			continue
 		}
-		if cleanedText != "" {
-			s.text.WriteString(cleanedText)
+		if p.CitationOnly {
+			continue
 		}
 		if !s.bufferToolContent {
-			if cleanedText == "" {
-				continue
-			}
-			batch.append("text", cleanedText)
+			batch.append("text", p.VisibleText)
 			continue
 		}
 		batch.flush()
-		s.processToolStreamEvents(toolstream.ProcessChunk(&s.sieve, p.Text, s.toolNames), true, true)
+		s.processToolStreamEvents(toolstream.ProcessChunk(&s.sieve, p.RawText, s.toolNames), true, true)
 	}
 
 	batch.flush()
-	return streamengine.ParsedDecision{ContentSeen: contentSeen}
+	return streamengine.ParsedDecision{ContentSeen: accumulated.ContentSeen}
 }
