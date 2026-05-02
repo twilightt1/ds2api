@@ -242,7 +242,7 @@ func consumeToolMarkupNamePrefixOnce(lower, text string, idx int) (int, bool) {
 	}
 	if strings.HasPrefix(lower[idx:], "dsml") {
 		next := idx + len("dsml")
-		if next < len(text) && text[next] == '-' {
+		if next < len(text) && (text[next] == '-' || text[next] == '_') {
 			next++
 		}
 		return next, true
