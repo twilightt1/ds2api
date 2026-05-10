@@ -53,7 +53,6 @@ func parseToolCallsDetailedXMLOnly(text string) ToolCallParseResult {
 	if trimmed == "" {
 		return result
 	}
-	result.SawToolCallSyntax = looksLikeToolCallSyntax(trimmed)
 	trimmed = stripFencedCodeBlocks(trimmed)
 	trimmed = strings.TrimSpace(trimmed)
 	if trimmed == "" {
@@ -64,8 +63,9 @@ func parseToolCallsDetailedXMLOnly(text string) ToolCallParseResult {
 	if !ok {
 		return result
 	}
+	result.SawToolCallSyntax = looksLikeToolCallSyntax(normalized) || hasRepairableXMLToolCallsWrapper(normalized)
 	parsed := parseXMLToolCalls(normalized)
-	if len(parsed) == 0 && strings.Contains(strings.ToLower(normalized), "<![cdata[") {
+	if len(parsed) == 0 && indexToolCDATAOpen(normalized, 0) >= 0 {
 		recovered := SanitizeLooseCDATA(normalized)
 		if recovered != normalized {
 			parsed = parseXMLToolCalls(recovered)
@@ -154,7 +154,7 @@ func stripFencedCodeBlocks(text string) string {
 }
 
 func cdataStartsBeforeFence(line string) bool {
-	cdataIdx := strings.Index(strings.ToLower(line), "<![cdata[")
+	cdataIdx := indexToolCDATAOpen(line, 0)
 	if cdataIdx < 0 {
 		return false
 	}
@@ -183,11 +183,14 @@ func updateCDATAStateForStrip(inCDATA bool, cdataFenceMarker, line string) (bool
 	fenceMarker := cdataFenceMarker
 	lineForFence := line
 	if !state {
-		start := indexASCIIFold(line, pos, "<![cdata[")
+		start := indexToolCDATAOpen(line, pos)
 		if start < 0 {
 			return false, ""
 		}
-		pos = start + len("<![cdata[")
+		pos = start + toolCDATAOpenLenAt(line, start)
+		if pos > len(line) {
+			pos = len(line)
+		}
 		state = true
 		lineForFence = line[pos:]
 	}
@@ -205,22 +208,36 @@ func updateCDATAStateForStrip(inCDATA bool, cdataFenceMarker, line string) (bool
 	}
 
 	for pos < len(line) {
-		endPos := indexASCIIFold(line, pos, "]]>")
+		endPos := -1
+		closeLen := 0
+		for search := pos; search < len(line); search++ {
+			if foundLen := toolCDATACloseLenAt(line, search); foundLen > 0 {
+				endPos = search
+				closeLen = foundLen
+				break
+			}
+		}
 		if endPos < 0 {
 			return true, fenceMarker
 		}
-		pos = endPos + len("]]>")
+		pos = endPos + closeLen
+		if pos > len(line) {
+			pos = len(line)
+		}
 		if fenceMarker != "" {
 			continue
 		}
 		if cdataEndLooksStructural(line, pos) || strings.TrimSpace(line[pos:]) == "" {
 			state = false
 			for pos < len(line) {
-				start := indexASCIIFold(line, pos, "<![cdata[")
+				start := indexToolCDATAOpen(line, pos)
 				if start < 0 {
 					return false, ""
 				}
-				pos = start + len("<![cdata[")
+				pos = start + toolCDATAOpenLenAt(line, start)
+				if pos > len(line) {
+					pos = len(line)
+				}
 				state = true
 				trimmedTail := strings.TrimLeft(line[pos:], " \t")
 				if marker, ok := parseFenceOpen(trimmedTail); ok {

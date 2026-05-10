@@ -229,25 +229,11 @@ func skipXMLIgnoredSection(text string, i int) (next int, advanced bool, blocked
 }
 
 func matchToolCDATAOpenAt(text string, start int) (int, bool) {
-	i, ok := consumeToolMarkupLessThan(text, start)
-	if !ok {
-		return start, false
-	}
-	for skipped := 0; skipped <= 4 && i < len(text); skipped++ {
-		if cdataLen, ok := matchASCIIPrefixFoldAt(text, i, "[cdata["); ok {
-			return i + cdataLen, true
-		}
-		r, size := utf8.DecodeRuneInString(text[i:])
-		if size <= 0 || !isToolCDATAOpenSeparator(r) {
-			break
-		}
-		i += size
+	openLen := toolCDATAOpenLenAt(text, start)
+	if openLen > 0 {
+		return start + openLen, true
 	}
 	return start, false
-}
-
-func isToolCDATAOpenSeparator(r rune) bool {
-	return isToolMarkupSeparator(r)
 }
 
 func hasASCIIPrefixFoldAt(text string, start int, prefix string) bool {
@@ -278,23 +264,6 @@ func asciiLower(b byte) byte {
 		return b + ('a' - 'A')
 	}
 	return b
-}
-
-// indexASCIIFold returns the absolute byte position in s where substr (ASCII-only) is
-// found case-insensitively, scanning forward from start. Returns -1 if not found.
-// Unlike strings.Index on a lowercased copy, this does not allocate or risk byte-length
-// mismatch when non-ASCII runes change width under case folding.
-func indexASCIIFold(s string, start int, substr string) int {
-	if start < 0 || len(s)-start < len(substr) {
-		return -1
-	}
-	end := len(s) - len(substr) + 1
-	for i := start; i < end; i++ {
-		if hasASCIIPrefixFoldAt(s, i, substr) {
-			return i
-		}
-	}
-	return -1
 }
 
 func findToolCDATAEnd(text string, from int) int {
@@ -342,13 +311,19 @@ func indexToolCDATAClose(text string, from int) int {
 }
 
 func toolCDATACloseLenAt(text string, idx int) int {
+	if idx < 0 || idx >= len(text) {
+		return 0
+	}
 	if strings.HasPrefix(text[idx:], "]]〉") {
 		return len("]]〉")
 	}
 	if strings.HasPrefix(text[idx:], "]]＞") {
 		return len("]]＞")
 	}
-	return len("]]>")
+	if strings.HasPrefix(text[idx:], "]]>") {
+		return len("]]>")
+	}
+	return 0
 }
 
 func cdataEndLooksStructural(text string, after int) bool {

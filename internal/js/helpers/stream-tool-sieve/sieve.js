@@ -12,6 +12,7 @@ const {
 const {
   consumeXMLToolCapture: consumeXMLToolCaptureImpl,
   hasOpenXMLToolTag,
+  shouldKeepBareInvokeCapture,
   findPartialXMLToolTagStart,
 } = require('./sieve-xml');
 function processToolSieveChunk(state, chunk, toolNames) {
@@ -201,6 +202,9 @@ function consumeToolCapture(state, toolNames) {
   }
   // If XML tags are present but block is incomplete, keep buffering.
   if (hasOpenXMLToolTag(captured)) {
+    return { ready: false, prefix: '', calls: [], suffix: '' };
+  }
+  if (shouldKeepBareInvokeCapture(captured)) {
     return { ready: false, prefix: '', calls: [], suffix: '' };
   }
 
